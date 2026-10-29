@@ -1,0 +1,175 @@
+```ts
+import { getTarotMeaningById } from "@/data/meanings/all-meanings";
+
+export type ReadingTopic = "general" | "love" | "career" | "finance";
+
+export type ReadingOrientation = "upright" | "reversed";
+
+export type ReadingCard = {
+  id: string;
+  name: string;
+  orientation: ReadingOrientation;
+};
+
+export type ReadingPosition = "past" | "present" | "future";
+
+type CardAnalysis = {
+  card: ReadingCard;
+  position: ReadingPosition;
+  positionName: string;
+  interpretation: string;
+  keywords: string[];
+};
+
+const positionNames: Record<ReadingPosition, string> = {
+  past: "อดีต",
+  present: "ปัจจุบัน",
+  future: "อนาคต",
+};
+
+const topicNames: Record<ReadingTopic, string> = {
+  general: "ภาพรวมชีวิต",
+  love: "ความรัก",
+  career: "การงาน",
+  finance: "การเงิน",
+};
+
+const topicAdvice: Record<ReadingTopic, string> = {
+  general:
+    "ทบทวนว่าประสบการณ์ที่ผ่านมาให้อะไรกับคุณ แล้วเลือกก้าวต่อไปจากข้อมูลและสิ่งที่คุณควบคุมได้",
+
+  love:
+    "สื่อสารความต้องการอย่างตรงไปตรงมา รับฟังอีกฝ่าย และพิจารณาความสัมพันธ์จากการกระทำที่เกิดขึ้นจริง",
+
+  career:
+    "จัดลำดับความสำคัญของงาน ตรวจสอบข้อเท็จจริง และแบ่งเป้าหมายใหญ่ให้เป็นขั้นตอนที่ลงมือทำได้",
+
+  finance:
+    "ตรวจสอบรายรับ รายจ่าย หนี้สิน และเงินสำรองก่อนตัดสินใจ โดยไม่ใช้คำทำนายแทนการประเมินความเสี่ยง",
+};
+
+function getCardAnalysis(
+  card: ReadingCard,
+  position: ReadingPosition,
+  topic: ReadingTopic
+): CardAnalysis | null {
+  const meaning = getTarotMeaningById(card.id);
+
+  if (!meaning) return null;
+
+  const orientationMeaning =
+    card.orientation === "upright"
+      ? meaning.upright
+      : meaning.reversed;
+
+  const interpretation = orientationMeaning[topic];
+
+  if (!interpretation) return null;
+
+  return {
+    card,
+    position,
+    positionName: positionNames[position],
+    interpretation,
+    keywords: meaning.keywords ?? [],
+  };
+}
+
+/**
+ * วิเคราะห์ไพ่สามตำแหน่งร่วมกัน
+ * โดยใช้ความหมายจากฐานข้อมูลเดิมเป็นหลัก
+ */
+export function analyzeThreeCards(
+  cards: ReadingCard[],
+  topic: ReadingTopic
+) {
+  if (cards.length !== 3) {
+    return null;
+  }
+
+  const positions: ReadingPosition[] = [
+    "past",
+    "present",
+    "future",
+  ];
+
+  const analyses = cards.map((card, index) =>
+    getCardAnalysis(card, positions[index], topic)
+  );
+
+  if (analyses.some((item) => item === null)) {
+    return null;
+  }
+
+  const [past, present, future] = analyses as [
+    CardAnalysis,
+    CardAnalysis,
+    CardAnalysis,
+  ];
+
+  const pastKeywords = past.keywords.join(" · ");
+  const presentKeywords = present.keywords.join(" · ");
+  const futureKeywords = future.keywords.join(" · ");
+
+  return {
+    topic,
+    topicName: topicNames[topic],
+    cards: analyses,
+
+    past,
+    present,
+    future,
+
+    narrative: {
+      title: `การเดินทางของ${topicNames[topic]}`,
+
+      introduction:
+        `การอ่านครั้งนี้มองไพ่ทั้งสามใบเป็นเรื่องราวเดียวกัน ` +
+        `โดยเริ่มจาก${past.positionName} ต่อเนื่องมายัง${present.positionName} ` +
+        `และพิจารณาแนวโน้มใน${future.positionName}`,
+
+      pastMeaning:
+        `พื้นฐานจากอดีต: ${past.interpretation} ` +
+        `คำสำคัญของไพ่ใบนี้คือ ${pastKeywords || "การเรียนรู้จากประสบการณ์"}`,
+
+      presentMeaning:
+        `สถานการณ์ปัจจุบัน: ${present.interpretation} ` +
+        `เมื่อพิจารณาต่อจากอดีต ควรสำรวจว่าประสบการณ์เดิมกำลังส่งผลต่อการตัดสินใจในตอนนี้อย่างไร ` +
+        `คำสำคัญคือ ${presentKeywords || "การพิจารณาสถานการณ์"}`,
+
+      futureMeaning:
+        `แนวโน้มในอนาคต: ${future.interpretation} ` +
+        `ไพ่ใบนี้ใช้พิจารณาทิศทางที่อาจเกิดขึ้น ไม่ใช่ผลลัพธ์ที่รับประกัน ` +
+        `คำสำคัญคือ ${futureKeywords || "ทางเลือกในอนาคต"}`,
+
+      connection:
+        `เมื่ออ่านไพ่ทั้งสามใบต่อเนื่องกัน ให้พิจารณาว่า ` +
+        `ประสบการณ์ในอดีตมีส่วนทำให้เกิดสถานการณ์ปัจจุบันอย่างไร ` +
+        `และสถานการณ์ปัจจุบันอาจส่งผลต่อทางเลือกในอนาคตแบบใด ` +
+        `โดยใช้ความหมายของไพ่แต่ละใบประกอบกับบริบทจริงของคุณ`,
+
+      advice: topicAdvice[topic],
+    },
+  };
+}
+
+/**
+ * วิเคราะห์ไพ่หนึ่งใบ โดยใช้ความหมายเดิมในฐานข้อมูล
+ */
+export function analyzeOneCard(
+  card: ReadingCard,
+  topic: ReadingTopic
+) {
+  const analysis = getCardAnalysis(card, "present", topic);
+
+  if (!analysis) return null;
+
+  return {
+    topic,
+    topicName: topicNames[topic],
+    card: analysis,
+    interpretation: analysis.interpretation,
+    advice: topicAdvice[topic],
+  };
+}
+```
