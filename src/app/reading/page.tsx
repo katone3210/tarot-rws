@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Suspense, useEffect, useRef, useState } from "react";
@@ -84,7 +83,6 @@ function createPersonalSeed(
 ): number {
   const now = new Date();
 
-  // เวลาปัจจุบันระดับวินาที (HH:mm:ss)
   const time =
     String(now.getHours()).padStart(2, "0") +
     String(now.getMinutes()).padStart(2, "0") +
@@ -93,7 +91,6 @@ function createPersonalSeed(
   const source =
     `${nickname.trim().toUpperCase()}|${day}|${month}|${year}|${time}|${attempt}`;
 
-  // FNV-1a Hash
   let seed = 2166136261;
 
   for (let i = 0; i < source.length; i++) {
@@ -119,15 +116,11 @@ function createSeededRandom(seed: number) {
   };
 }
 
-/**
- * ส่วนแสดงผลไพ่
- * useSearchParams() อยู่ใน Component นี้
- * และจะถูกครอบด้วย Suspense จาก ReadingPage()
- */
 function ReadingContent() {
   const searchParams = useSearchParams();
 
   const requestedMode = searchParams.get("mode");
+
   const mode =
     requestedMode === "one" || requestedMode === "celtic"
       ? requestedMode
@@ -152,6 +145,10 @@ function ReadingContent() {
   const [birthDay, setBirthDay] = useState("");
   const [birthMonth, setBirthMonth] = useState("");
   const [birthYear, setBirthYear] = useState("");
+
+  // เก็บ ID ของไพ่ที่ผู้เล่นเปิดคำอธิบายแล้ว
+  const [revealedMeaningIds, setRevealedMeaningIds] =
+    useState<Set<string>>(new Set());
 
   // นับจำนวนรอบการสับไพ่
   const shuffleAttemptRef = useRef(0);
@@ -183,7 +180,6 @@ function ReadingContent() {
       return false;
     }
 
-    // แปลง พ.ศ. เป็น ค.ศ. เพื่อตรวจสอบวันที่จริง
     const date = new Date(
       Date.UTC(year - 543, month - 1, day)
     );
@@ -194,6 +190,22 @@ function ReadingContent() {
       date.getUTCDate() === day
     );
   })();
+
+  // ตรวจสอบว่าผู้เล่นเปิดคำอธิบายครบทุกใบหรือยัง
+  const allMeaningsOpened =
+    drawnCards.length === cardCount &&
+    drawnCards.every((card) =>
+      revealedMeaningIds.has(card.id)
+    );
+
+  // เปิดคำอธิบายของไพ่แต่ละใบ
+  function revealMeaning(cardId: string) {
+    setRevealedMeaningIds((current) => {
+      const next = new Set(current);
+      next.add(cardId);
+      return next;
+    });
+  }
 
   // เมื่อเปิดไพ่ใบแรก ให้เลื่อนลงมาที่ผลไพ่โดยอัตโนมัติ
   useEffect(() => {
@@ -211,10 +223,8 @@ function ReadingContent() {
   function shuffleDeck() {
     if (isShuffling || !isBirthdayValid) return;
 
-    // เพิ่มเลขรอบการสับ เพื่อป้องกัน Seed ซ้ำ
     shuffleAttemptRef.current += 1;
 
-    // สร้าง Personal Seed
     const seed = createPersonalSeed(
       nickname,
       birthDay,
@@ -223,7 +233,6 @@ function ReadingContent() {
       shuffleAttemptRef.current
     );
 
-    // สร้างตัวสุ่มจาก Seed
     const random = createSeededRandom(seed);
 
     const shuffled = [...tarotCards];
@@ -250,6 +259,7 @@ function ReadingContent() {
 
     setPendingCards(result);
     setDrawnCards([]);
+    setRevealedMeaningIds(new Set());
     setHasShuffled(false);
     setIsShuffling(true);
 
@@ -268,6 +278,8 @@ function ReadingContent() {
     ) {
       return;
     }
+
+    setRevealedMeaningIds(new Set());
 
     if (mode === "three") {
       setDrawnCards([pendingCards[0]]);
@@ -291,13 +303,442 @@ function ReadingContent() {
   function restartReading() {
     setDrawnCards([]);
     setPendingCards([]);
+    setRevealedMeaningIds(new Set());
     setHasShuffled(false);
     setIsShuffling(false);
   }
 
   return (
-    <main className="min-h-screen bg-[#100e17] px-4 py-12 text-[#f5e6c8] sm:px-6">
+    <main className="arcana-reading-shell relative min-h-screen overflow-hidden px-4 py-10 text-[#f5e6c8] sm:px-6 sm:py-14">
       <style jsx>{`
+        .arcana-reading-shell {
+          --gold: #d7b76e;
+          --gold-light: #f5dfa4;
+          --purple: #a78bfa;
+          --purple-light: #c4b5fd;
+          --panel: rgba(24, 20, 48, 0.76);
+          --panel-border: rgba(215, 183, 110, 0.28);
+          background:
+            radial-gradient(ellipse at 50% -10%, rgba(106, 72, 160, 0.28), transparent 48%),
+            radial-gradient(ellipse at 0% 45%, rgba(82, 55, 130, 0.12), transparent 38%),
+            radial-gradient(ellipse at 100% 70%, rgba(112, 76, 154, 0.12), transparent 38%),
+            linear-gradient(180deg, #090817 0%, #100d20 48%, #090817 100%);
+          isolation: isolate;
+        }
+
+        .arcana-reading-shell::before,
+        .arcana-reading-shell::after {
+          content: "";
+          position: absolute;
+          pointer-events: none;
+          z-index: -1;
+          border-radius: 50%;
+          filter: blur(2px);
+        }
+
+        .arcana-reading-shell::before {
+          width: 420px;
+          height: 420px;
+          top: 10%;
+          left: -300px;
+          border: 1px solid rgba(215, 183, 110, 0.12);
+          box-shadow:
+            0 0 80px rgba(167, 139, 250, 0.08),
+            inset 0 0 80px rgba(167, 139, 250, 0.05);
+        }
+
+        .arcana-reading-shell::after {
+          width: 520px;
+          height: 520px;
+          right: -380px;
+          bottom: 8%;
+          border: 1px solid rgba(215, 183, 110, 0.1);
+          box-shadow: 0 0 100px rgba(167, 139, 250, 0.08);
+        }
+
+        .arcana-header {
+          position: relative;
+          padding: 1.5rem 0 2rem;
+        }
+
+        .arcana-logo {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.7rem;
+          color: var(--gold);
+          font-size: 0.78rem;
+          font-weight: 700;
+          letter-spacing: 0.48em;
+          text-shadow: 0 0 20px rgba(215, 183, 110, 0.45);
+        }
+
+        .arcana-title {
+          color: #fff4d8;
+          font-family: Georgia, "Times New Roman", serif;
+          font-weight: 500;
+          letter-spacing: 0.025em;
+          line-height: 1.2;
+          text-shadow:
+            0 0 24px rgba(196, 181, 253, 0.18),
+            0 3px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .arcana-subtitle {
+          color: #bcb3d0;
+          letter-spacing: 0.08em;
+        }
+
+        .arcana-mystic-orbit {
+          position: absolute;
+          width: 250px;
+          height: 250px;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          border: 1px solid rgba(215, 183, 110, 0.08);
+          border-radius: 50%;
+          pointer-events: none;
+          box-shadow:
+            0 0 50px rgba(167, 139, 250, 0.07),
+            inset 0 0 50px rgba(167, 139, 250, 0.04);
+        }
+
+        .arcana-mystic-orbit::before,
+        .arcana-mystic-orbit::after {
+          content: "✦";
+          position: absolute;
+          color: rgba(215, 183, 110, 0.55);
+          font-size: 1rem;
+        }
+
+        .arcana-mystic-orbit::before {
+          top: 8%;
+          left: 18%;
+        }
+
+        .arcana-mystic-orbit::after {
+          right: 15%;
+          bottom: 12%;
+        }
+
+        .arcana-panel {
+          position: relative;
+          overflow: hidden;
+          border: 1px solid var(--panel-border);
+          border-radius: 1.4rem;
+          background:
+            linear-gradient(145deg, rgba(45, 34, 75, 0.48), rgba(17, 14, 34, 0.88)),
+            var(--panel);
+          box-shadow:
+            0 18px 55px rgba(0, 0, 0, 0.28),
+            inset 0 1px 0 rgba(255, 255, 255, 0.05);
+          backdrop-filter: blur(18px);
+        }
+
+        .arcana-panel::before {
+          content: "";
+          position: absolute;
+          top: 0;
+          left: 12%;
+          right: 12%;
+          height: 1px;
+          background: linear-gradient(90deg, transparent, var(--gold), transparent);
+          opacity: 0.65;
+        }
+
+        .arcana-input {
+          width: 100%;
+          border: 1px solid rgba(167, 139, 250, 0.28);
+          border-radius: 0.85rem;
+          background: rgba(8, 7, 22, 0.72);
+          padding: 0.8rem 1rem;
+          color: #fff4d8;
+          outline: none;
+          transition: border-color 0.25s, box-shadow 0.25s, background 0.25s;
+        }
+
+        .arcana-input::placeholder {
+          color: #77718c;
+        }
+
+        .arcana-input:focus {
+          border-color: var(--gold);
+          background: rgba(15, 12, 31, 0.95);
+          box-shadow: 0 0 0 3px rgba(215, 183, 110, 0.1);
+        }
+
+        .arcana-topic {
+          position: relative;
+          overflow: hidden;
+          min-height: 108px;
+          border: 1px solid rgba(167, 139, 250, 0.22);
+          border-radius: 1rem;
+          background: rgba(25, 20, 48, 0.72);
+          color: #c7bddc;
+          transition:
+            transform 0.25s ease,
+            border-color 0.25s ease,
+            background 0.25s ease,
+            box-shadow 0.25s ease;
+        }
+
+        .arcana-topic:hover {
+          transform: translateY(-3px);
+          border-color: rgba(215, 183, 110, 0.6);
+          background: rgba(50, 38, 77, 0.75);
+        }
+
+        .arcana-topic-active {
+          border-color: var(--gold);
+          background: linear-gradient(145deg, rgba(119, 87, 153, 0.38), rgba(42, 31, 67, 0.9));
+          color: var(--gold-light);
+          box-shadow:
+            0 0 24px rgba(215, 183, 110, 0.12),
+            inset 0 0 20px rgba(215, 183, 110, 0.06);
+        }
+
+        .arcana-topic-active::after {
+          content: "";
+          position: absolute;
+          top: 0;
+          left: 20%;
+          right: 20%;
+          height: 1px;
+          background: linear-gradient(90deg, transparent, var(--gold), transparent);
+        }
+
+        .arcana-button-primary,
+        .arcana-button-secondary {
+          position: relative;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.6rem;
+          min-height: 48px;
+          border-radius: 999px;
+          padding: 0.8rem 2rem;
+          font-size: 0.9rem;
+          font-weight: 700;
+          letter-spacing: 0.04em;
+          transition:
+            transform 0.25s ease,
+            box-shadow 0.25s ease,
+            background 0.25s ease,
+            border-color 0.25s ease;
+        }
+
+        .arcana-button-primary {
+          border: 1px solid #f0d28b;
+          background: linear-gradient(135deg, #f0d28b, #bd9650 55%, #9c753c);
+          color: #171126;
+          box-shadow:
+            0 8px 28px rgba(198, 161, 91, 0.2),
+            inset 0 1px 0 rgba(255, 255, 255, 0.5);
+        }
+
+        .arcana-button-primary:hover:not(:disabled) {
+          transform: translateY(-2px);
+          background: linear-gradient(135deg, #fff0bd, #d8b56c 55%, #b38a49);
+          box-shadow: 0 12px 34px rgba(215, 183, 110, 0.32);
+        }
+
+        .arcana-button-secondary {
+          border: 1px solid rgba(215, 183, 110, 0.72);
+          background: rgba(33, 25, 55, 0.78);
+          color: var(--gold-light);
+        }
+
+        .arcana-button-secondary:hover:not(:disabled) {
+          transform: translateY(-2px);
+          border-color: var(--gold-light);
+          background: rgba(76, 56, 104, 0.6);
+          box-shadow: 0 8px 24px rgba(167, 139, 250, 0.12);
+        }
+
+        .arcana-button-primary:disabled,
+        .arcana-button-secondary:disabled {
+          cursor: not-allowed;
+          opacity: 0.4;
+          transform: none;
+          box-shadow: none;
+        }
+
+        .arcana-deck {
+          position: relative;
+          width: 9rem;
+          height: 12.5rem;
+          isolation: isolate;
+          filter: drop-shadow(0 15px 25px rgba(0, 0, 0, 0.35));
+        }
+
+        .arcana-deck-card {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          border: 1px solid #d7b76e;
+          border-radius: 0.85rem;
+          background:
+            radial-gradient(circle at 50% 45%, rgba(167, 139, 250, 0.28), transparent 48%),
+            linear-gradient(145deg, #342653, #151127 65%, #0c0a19);
+          box-shadow:
+            0 8px 18px rgba(0, 0, 0, 0.42),
+            inset 0 0 0 4px rgba(215, 183, 110, 0.1),
+            inset 0 0 0 6px rgba(215, 183, 110, 0.06);
+          will-change: transform;
+        }
+
+        .arcana-deck-card-inner {
+          display: flex;
+          width: 100%;
+          height: 100%;
+          align-items: center;
+          justify-content: center;
+          border: 1px solid rgba(215, 183, 110, 0.55);
+          border-radius: 0.65rem;
+          background:
+            repeating-linear-gradient(
+              45deg,
+              transparent,
+              transparent 12px,
+              rgba(215, 183, 110, 0.025) 13px,
+              rgba(215, 183, 110, 0.025) 14px
+            );
+        }
+
+        .arcana-deck-symbol {
+          display: flex;
+          width: 75px;
+          height: 75px;
+          align-items: center;
+          justify-content: center;
+          border: 1px solid rgba(215, 183, 110, 0.65);
+          border-radius: 50%;
+          color: var(--gold-light);
+          font-size: 2.4rem;
+          text-shadow: 0 0 22px rgba(215, 183, 110, 0.75);
+          box-shadow:
+            0 0 30px rgba(167, 139, 250, 0.2),
+            inset 0 0 20px rgba(215, 183, 110, 0.08);
+        }
+
+        .arcana-deck.is-shuffling .arcana-deck-card {
+          animation-duration: 0.95s;
+          animation-timing-function: cubic-bezier(0.45, 0, 0.2, 1);
+          animation-iteration-count: 2;
+          animation-fill-mode: both;
+        }
+
+        .arcana-deck.is-shuffling .arcana-deck-card:nth-child(odd) {
+          animation-name: shuffleCardLeft;
+        }
+
+        .arcana-deck.is-shuffling .arcana-deck-card:nth-child(even) {
+          animation-name: shuffleCardRight;
+        }
+
+        .arcana-deck.is-shuffling .arcana-deck-card:nth-child(1) { animation-delay: 0ms; }
+        .arcana-deck.is-shuffling .arcana-deck-card:nth-child(2) { animation-delay: 90ms; }
+        .arcana-deck.is-shuffling .arcana-deck-card:nth-child(3) { animation-delay: 180ms; }
+        .arcana-deck.is-shuffling .arcana-deck-card:nth-child(4) { animation-delay: 270ms; }
+        .arcana-deck.is-shuffling .arcana-deck-card:nth-child(5) { animation-delay: 360ms; }
+        .arcana-deck.is-shuffling .arcana-deck-card:nth-child(6) { animation-delay: 450ms; }
+        .arcana-deck.is-shuffling .arcana-deck-card:nth-child(7) { animation-delay: 540ms; }
+        .arcana-deck.is-shuffling .arcana-deck-card:nth-child(8) { animation-delay: 630ms; }
+
+        .arcana-result-card {
+          position: relative;
+          overflow: hidden;
+          border: 1px solid rgba(215, 183, 110, 0.3);
+          border-radius: 1.25rem;
+          background:
+            linear-gradient(155deg, rgba(43, 33, 69, 0.82), rgba(17, 14, 34, 0.96) 55%),
+            #171329;
+          padding: 1.25rem;
+          box-shadow:
+            0 16px 38px rgba(0, 0, 0, 0.25),
+            inset 0 1px 0 rgba(255, 255, 255, 0.035);
+          animation: cardAppear 0.75s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+        }
+
+        .arcana-result-card::before {
+          content: "";
+          position: absolute;
+          top: 0;
+          left: 15%;
+          right: 15%;
+          height: 1px;
+          background: linear-gradient(90deg, transparent, rgba(215, 183, 110, 0.8), transparent);
+        }
+
+        .arcana-card-frame {
+          position: relative;
+          overflow: hidden;
+          max-width: 12rem;
+          margin: 1.5rem auto 0;
+          border: 1px solid rgba(215, 183, 110, 0.58);
+          border-radius: 0.85rem;
+          background: #0b0918;
+          box-shadow:
+            0 12px 30px rgba(0, 0, 0, 0.45),
+            0 0 25px rgba(167, 139, 250, 0.1);
+        }
+
+        .arcana-card-frame img {
+          display: block;
+          width: 100%;
+          height: auto;
+        }
+
+        .arcana-reveal-button {
+          border: 1px solid rgba(215, 183, 110, 0.8);
+          border-radius: 999px;
+          background: linear-gradient(135deg, rgba(119, 87, 153, 0.32), rgba(39, 29, 64, 0.9));
+          padding: 0.8rem 1.7rem;
+          color: #f5dfa4;
+          font-size: 0.85rem;
+          font-weight: 700;
+          transition: all 0.25s ease;
+          box-shadow: 0 5px 20px rgba(167, 139, 250, 0.08);
+        }
+
+        .arcana-reveal-button:hover {
+          transform: translateY(-2px);
+          background: linear-gradient(135deg, #d7b76e, #a9854a);
+          color: #171126;
+          box-shadow: 0 8px 24px rgba(215, 183, 110, 0.2);
+        }
+
+        .arcana-summary {
+          position: relative;
+          overflow: hidden;
+          border: 1px solid rgba(215, 183, 110, 0.5);
+          border-radius: 1.5rem;
+          background:
+            radial-gradient(ellipse at 50% 0%, rgba(119, 87, 153, 0.22), transparent 55%),
+            linear-gradient(145deg, rgba(35, 27, 58, 0.98), rgba(13, 11, 28, 0.98));
+          padding: 1.5rem;
+          text-align: left;
+          box-shadow:
+            0 20px 65px rgba(0, 0, 0, 0.3),
+            0 0 40px rgba(215, 183, 110, 0.06);
+        }
+
+        .arcana-summary-item {
+          border-left: 2px solid var(--gold);
+          padding-left: 1rem;
+        }
+
+        .arcana-meaning-reveal {
+          animation: meaningAppear 0.75s ease-out both;
+        }
+
+        .arcana-sticky-controls {
+          border-bottom: 1px solid rgba(215, 183, 110, 0.15);
+          background: rgba(10, 8, 25, 0.94);
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+          backdrop-filter: blur(18px);
+        }
+
         @keyframes shuffleCardLeft {
           0%, 100% {
             transform: translate3d(0, 0, 0) rotate(0deg);
@@ -334,77 +775,40 @@ function ReadingContent() {
           }
         }
 
-        .arcana-deck {
-          position: relative;
-          width: 9rem;
-          height: 12.5rem;
-          isolation: isolate;
+        @keyframes cardAppear {
+          from {
+            opacity: 0;
+            transform: translateY(25px) scale(0.96);
+            filter: blur(5px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+            filter: blur(0);
+          }
         }
 
-        .arcana-deck-card {
-          position: absolute;
-          inset: 0;
-          border-radius: 0.75rem;
-          border: 2px solid #c6a15b;
-          background: #191622;
-          box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
-          will-change: transform;
+        @keyframes meaningAppear {
+          from {
+            opacity: 0;
+            transform: translateY(14px);
+            filter: blur(3px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+            filter: blur(0);
+          }
         }
 
-        .arcana-deck-card:nth-child(1) { z-index: 1; }
-        .arcana-deck-card:nth-child(2) { z-index: 2; }
-        .arcana-deck-card:nth-child(3) { z-index: 3; }
-        .arcana-deck-card:nth-child(4) { z-index: 4; }
-        .arcana-deck-card:nth-child(5) { z-index: 5; }
-        .arcana-deck-card:nth-child(6) { z-index: 6; }
-        .arcana-deck-card:nth-child(7) { z-index: 7; }
-        .arcana-deck-card:nth-child(8) { z-index: 8; }
+        @media (min-width: 640px) {
+          .arcana-result-card {
+            padding: 1.5rem;
+          }
 
-        .arcana-deck.is-shuffling .arcana-deck-card {
-          animation-duration: 0.95s;
-          animation-timing-function: cubic-bezier(0.45, 0, 0.2, 1);
-          animation-iteration-count: 2;
-          animation-fill-mode: both;
-        }
-
-        .arcana-deck.is-shuffling .arcana-deck-card:nth-child(odd) {
-          animation-name: shuffleCardLeft;
-        }
-
-        .arcana-deck.is-shuffling .arcana-deck-card:nth-child(even) {
-          animation-name: shuffleCardRight;
-        }
-
-        .arcana-deck.is-shuffling .arcana-deck-card:nth-child(1) {
-          animation-delay: 0ms;
-        }
-
-        .arcana-deck.is-shuffling .arcana-deck-card:nth-child(2) {
-          animation-delay: 90ms;
-        }
-
-        .arcana-deck.is-shuffling .arcana-deck-card:nth-child(3) {
-          animation-delay: 180ms;
-        }
-
-        .arcana-deck.is-shuffling .arcana-deck-card:nth-child(4) {
-          animation-delay: 270ms;
-        }
-
-        .arcana-deck.is-shuffling .arcana-deck-card:nth-child(5) {
-          animation-delay: 360ms;
-        }
-
-        .arcana-deck.is-shuffling .arcana-deck-card:nth-child(6) {
-          animation-delay: 450ms;
-        }
-
-        .arcana-deck.is-shuffling .arcana-deck-card:nth-child(7) {
-          animation-delay: 540ms;
-        }
-
-        .arcana-deck.is-shuffling .arcana-deck-card:nth-child(8) {
-          animation-delay: 630ms;
+          .arcana-summary {
+            padding: 2rem;
+          }
         }
 
         @media (prefers-reduced-motion: reduce) {
@@ -412,47 +816,84 @@ function ReadingContent() {
             animation-duration: 0.01ms;
             animation-iteration-count: 1;
           }
+
+          .arcana-result-card,
+          .arcana-meaning-reveal {
+            animation: none;
+          }
+
+          .arcana-topic,
+          .arcana-button-primary,
+          .arcana-button-secondary,
+          .arcana-reveal-button {
+            transition: none;
+          }
         }
       `}</style>
 
-      <div className="mx-auto max-w-5xl text-center">
-        {/* ส่วนหัว */}
-        <p className="text-sm tracking-[0.4em] text-[#c6a15b]">
-          THE ARCANA
-        </p>
+      <div className="relative z-10 mx-auto max-w-6xl text-center">
+        {/* HEADER */}
+        <header className="arcana-header relative">
+          <div className="arcana-mystic-orbit" />
 
-        <h1 className="mt-4 text-3xl font-bold">
-          {mode === "one"
-            ? "เปิดไพ่ทาโรต์ 1 ใบ"
-            : mode === "celtic"
-              ? "กางเขนเซลติก · ไพ่ 10 ใบ"
-              : "เปิดไพ่ทาโรต์ 3 ใบ"}
-        </h1>
+          <div className="relative z-10">
+            <div className="arcana-logo">
+              <span>✦</span>
+              <span>THE ARCANA</span>
+              <span>✦</span>
+            </div>
 
-        <p className="mt-4 text-[#c8c0b2]">
-          {mode === "one"
-            ? "ไพ่คำแนะนำสำหรับคุณ"
-            : mode === "celtic"
-              ? "สำรวจสถานการณ์ อุปสรรค ปัจจัยแวดล้อม และแนวโน้มโดยรวม"
-              : "อดีต · ปัจจุบัน · อนาคต"}
-        </p>
+            <div className="mx-auto my-6 h-px w-28 bg-gradient-to-r from-transparent via-[#d7b76e] to-transparent" />
 
-        {/* Personal Tarot Form */}
-        <section className="mx-auto mt-8 max-w-xl rounded-2xl border border-[#8b7448] bg-[#191622] p-5 text-left sm:p-7">
-          <p className="text-sm tracking-[0.3em] text-[#c6a15b]">
-            PERSONAL TAROT
-          </p>
+            <h1 className="arcana-title text-3xl sm:text-5xl">
+              {mode === "one"
+                ? "The Single Card"
+                : mode === "celtic"
+                  ? "The Celtic Cross"
+                  : "The Threefold Path"}
+            </h1>
 
-          <h2 className="mt-3 text-xl font-semibold">
-            ข้อมูลของผู้เปิดไพ่
-          </h2>
+            <p className="mt-5 text-lg font-medium tracking-wider text-[#e1c27d]">
+              {mode === "one"
+                ? "เปิดไพ่ทาโรต์ 1 ใบ"
+                : mode === "celtic"
+                  ? "กางเขนเซลติก · ไพ่ 10 ใบ"
+                  : "เปิดไพ่ทาโรต์ 3 ใบ"}
+            </p>
 
-          <p className="mt-2 text-sm leading-6 text-[#c8c0b2]">
+            <p className="arcana-subtitle mt-3 text-sm leading-7">
+              {mode === "one"
+                ? "ไพ่คำแนะนำสำหรับเส้นทางของคุณ"
+                : mode === "celtic"
+                  ? "สำรวจพลังงานและแนวโน้มในทุกมิติของชีวิต"
+                  : "อดีต · ปัจจุบัน · อนาคต"}
+            </p>
+          </div>
+        </header>
+
+        {/* PERSONAL TAROT FORM */}
+        <section className="arcana-panel mx-auto mt-5 max-w-xl p-5 text-left sm:p-7">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-full border border-[#d7b76e]/40 bg-[#d7b76e]/10 text-xl text-[#f5dfa4]">
+              ✧
+            </div>
+
+            <div>
+              <p className="text-xs tracking-[0.3em] text-[#d7b76e]">
+                PERSONAL TAROT
+              </p>
+
+              <h2 className="mt-1 text-xl font-semibold text-[#fff4d8]">
+                ข้อมูลของผู้เปิดไพ่
+              </h2>
+            </div>
+          </div>
+
+          <p className="mt-4 text-sm leading-6 text-[#bcb3d0]">
             กรอกข้อมูลของคุณเพื่อใช้ประกอบการสุ่มไพ่เฉพาะบุคคล
           </p>
 
           <div className="mt-6 space-y-5">
-            {/* ชื่อเล่น */}
             <div>
               <label
                 htmlFor="nickname"
@@ -469,11 +910,10 @@ function ReadingContent() {
                 maxLength={30}
                 placeholder="กรอกชื่อเล่นของคุณ"
                 autoComplete="nickname"
-                className="w-full rounded-xl border border-[#8b7448]/60 bg-[#100e17] px-4 py-3 text-[#f5e6c8] outline-none placeholder:text-[#777080] focus:border-[#c6a15b]"
+                className="arcana-input"
               />
             </div>
 
-            {/* วันเกิด */}
             <div>
               <label className="mb-2 block text-sm text-[#e1c27d]">
                 วันเกิด
@@ -488,7 +928,7 @@ function ReadingContent() {
                   onChange={(e) => setBirthDay(e.target.value)}
                   placeholder="วัน"
                   aria-label="วันเกิด"
-                  className="min-w-0 w-full rounded-xl border border-[#8b7448]/60 bg-[#100e17] px-3 py-3 text-center text-[#f5e6c8] outline-none focus:border-[#c6a15b]"
+                  className="arcana-input min-w-0 text-center"
                 />
 
                 <input
@@ -499,7 +939,7 @@ function ReadingContent() {
                   onChange={(e) => setBirthMonth(e.target.value)}
                   placeholder="เดือน"
                   aria-label="เดือนเกิด"
-                  className="min-w-0 w-full rounded-xl border border-[#8b7448]/60 bg-[#100e17] px-3 py-3 text-center text-[#f5e6c8] outline-none focus:border-[#c6a15b]"
+                  className="arcana-input min-w-0 text-center"
                 />
 
                 <input
@@ -510,7 +950,7 @@ function ReadingContent() {
                   onChange={(e) => setBirthYear(e.target.value)}
                   placeholder="พ.ศ."
                   aria-label="ปีเกิด พ.ศ."
-                  className="min-w-0 w-full rounded-xl border border-[#8b7448]/60 bg-[#100e17] px-3 py-3 text-center text-[#f5e6c8] outline-none focus:border-[#c6a15b]"
+                  className="arcana-input min-w-0 text-center"
                 />
               </div>
 
@@ -519,10 +959,12 @@ function ReadingContent() {
               </p>
             </div>
 
-            {/* ข้อความแจ้งเตือน */}
             {(nickname || birthDay || birthMonth || birthYear) &&
               !isBirthdayValid && (
-                <p className="text-sm text-rose-300">
+                <p
+                  className="rounded-lg border border-rose-400/20 bg-rose-400/5 px-3 py-2 text-sm text-rose-300"
+                  role="alert"
+                >
                   กรุณาตรวจสอบชื่อเล่นและวันเกิดให้ถูกต้อง
                 </p>
               )}
@@ -530,10 +972,16 @@ function ReadingContent() {
         </section>
 
         {/* เลือกหัวข้อคำทำนาย */}
-        <section className="mt-8">
-          <p className="mb-4 text-sm text-[#c8c0b2]">
-            เลือกหัวข้อที่ต้องการคำแนะนำ
-          </p>
+        <section className="mx-auto mt-9 max-w-3xl">
+          <div className="mb-5">
+            <p className="text-xs tracking-[0.25em] text-[#d7b76e]">
+              CHOOSE YOUR PATH
+            </p>
+
+            <h2 className="mt-2 text-lg font-medium text-[#f5e6c8]">
+              เลือกหัวข้อที่ต้องการคำแนะนำ
+            </h2>
+          </div>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {topics.map((topic) => (
@@ -542,18 +990,25 @@ function ReadingContent() {
                 type="button"
                 onClick={() => setReadingTopic(topic.id)}
                 aria-pressed={readingTopic === topic.id}
-                className={
-                  "rounded-xl border px-3 py-4 transition " +
-                  (readingTopic === topic.id
-                    ? "border-[#c6a15b] bg-[#c6a15b]/15 text-[#e1c27d]"
-                    : "border-[#8b7448]/50 bg-[#191622] text-[#c8c0b2] hover:border-[#c6a15b]")
-                }
+                className={`arcana-topic px-3 py-4 ${
+                  readingTopic === topic.id
+                    ? "arcana-topic-active"
+                    : ""
+                }`}
               >
-                <span className="block text-xl">{topic.icon}</span>
+                <span className="block text-2xl">
+                  {topic.icon}
+                </span>
 
-                <span className="mt-2 block text-sm font-medium">
+                <span className="mt-3 block text-sm font-medium">
                   {topic.label}
                 </span>
+
+                {readingTopic === topic.id && (
+                  <span className="mt-2 block text-[10px] tracking-[0.2em] text-[#d7b76e]">
+                    SELECTED
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -561,15 +1016,24 @@ function ReadingContent() {
 
         {/* ปุ่มเปิดไพ่ */}
         <div
-          className={`mt-8 flex flex-col items-center gap-3 ${
+          className={`mt-10 flex flex-col items-center gap-4 ${
             mode === "three" && drawnCards.length > 0
-              ? "sticky top-0 z-30 -mx-4 bg-[#100e17]/95 px-4 py-3 shadow-[0_8px_18px_rgba(0,0,0,0.3)] backdrop-blur sm:-mx-6 sm:px-6"
+              ? "arcana-sticky-controls sticky top-0 z-30 -mx-4 px-4 py-4 sm:-mx-6 sm:px-6"
               : ""
           }`}
         >
           {drawnCards.length === 0 ? (
             <>
-              {/* สำรับไพ่ */}
+              <div className="mb-2 text-center">
+                <p className="text-xs tracking-[0.3em] text-[#d7b76e]">
+                  THE SACRED DECK
+                </p>
+
+                <p className="mt-2 text-sm text-[#a99fbd]">
+                  ตั้งสมาธิและเตรียมพร้อมสำหรับการเปิดไพ่
+                </p>
+              </div>
+
               <div
                 className={`arcana-deck ${
                   isShuffling ? "is-shuffling" : ""
@@ -586,8 +1050,8 @@ function ReadingContent() {
                       left: `${card * 1.5}px`,
                     }}
                   >
-                    <div className="flex h-full items-center justify-center rounded-xl border border-[#8b7448]/70">
-                      <span className="text-4xl text-[#c6a15b]">
+                    <div className="arcana-deck-card-inner">
+                      <span className="arcana-deck-symbol">
                         ✦
                       </span>
                     </div>
@@ -595,28 +1059,32 @@ function ReadingContent() {
                 ))}
               </div>
 
-              {/* ปุ่มสับไพ่ใหม่ */}
-              <button
-                type="button"
-                onClick={shuffleDeck}
-                disabled={isShuffling || !isBirthdayValid}
-                className="rounded-full border border-[#c6a15b] px-8 py-3 font-semibold text-[#e1c27d] transition hover:bg-[#c6a15b]/10 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {isShuffling ? "กำลังสับไพ่..." : "สับไพ่ใหม่"}
-              </button>
+              <div className="mt-5 flex w-full flex-col items-center gap-3 sm:flex-row sm:justify-center">
+                <button
+                  type="button"
+                  onClick={shuffleDeck}
+                  disabled={isShuffling || !isBirthdayValid}
+                  className="arcana-button-secondary w-full sm:w-auto"
+                >
+                  <span>✧</span>
+                  {isShuffling ? "กำลังสับไพ่..." : "สับไพ่ใหม่"}
+                </button>
 
-              {/* ปุ่มเริ่มหยิบไพ่ */}
-              <button
-                type="button"
-                onClick={startDrawing}
-                disabled={!hasShuffled || isShuffling}
-                className="rounded-full border border-[#c6a15b] bg-[#c6a15b] px-8 py-3 font-semibold text-[#100e17] transition hover:bg-[#e1c27d] disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                เริ่มหยิบไพ่
-              </button>
+                <button
+                  type="button"
+                  onClick={startDrawing}
+                  disabled={!hasShuffled || isShuffling}
+                  className="arcana-button-primary w-full sm:w-auto"
+                >
+                  <span>✦</span>
+                  เริ่มหยิบไพ่
+                </button>
+              </div>
 
-              {/* สถานะการสับไพ่ */}
-              <p className="text-sm text-[#c8c0b2]" aria-live="polite">
+              <p
+                className="mt-1 text-sm text-[#bcb3d0]"
+                aria-live="polite"
+              >
                 {isShuffling
                   ? "กำลังสับไพ่ กรุณารอสักครู่"
                   : !isBirthdayValid
@@ -630,21 +1098,21 @@ function ReadingContent() {
             <button
               type="button"
               onClick={revealNextCard}
-              className="rounded-full border border-[#c6a15b] bg-[#c6a15b] px-8 py-3 font-semibold text-[#100e17] transition hover:bg-[#e1c27d]"
+              className="arcana-button-primary"
             >
-              {`หยิบไพ่ใบที่ ${drawnCards.length + 1}`}
+              ✦ หยิบไพ่ใบที่ {drawnCards.length + 1}
             </button>
           ) : mode === "three" ? (
-            <p className="text-sm text-[#e1c27d]">
-              เปิดไพ่ครบทั้ง 3 ใบแล้ว
+            <p className="text-sm font-medium tracking-wider text-[#e1c27d]">
+              ✧ เปิดไพ่ครบทั้ง 3 ใบแล้ว ✧
             </p>
           ) : (
             <button
               type="button"
               onClick={restartReading}
-              className="rounded-full border border-[#c6a15b] px-8 py-3 text-[#e1c27d] transition hover:bg-[#c6a15b]/10"
+              className="arcana-button-secondary"
             >
-              สับไพ่และเริ่มอ่านใหม่
+              ↻ สับไพ่และเริ่มอ่านใหม่
             </button>
           )}
 
@@ -658,7 +1126,7 @@ function ReadingContent() {
                   key={step}
                   className={`h-1.5 w-10 rounded-full transition-colors ${
                     step < drawnCards.length
-                      ? "bg-[#c6a15b]"
+                      ? "bg-[#d7b76e] shadow-[0_0_10px_rgba(215,183,110,0.5)]"
                       : "bg-[#8b7448]/30"
                   }`}
                 />
@@ -674,38 +1142,55 @@ function ReadingContent() {
             <button
               type="button"
               onClick={restartReading}
-              className="mt-1 text-sm text-[#c8c0b2] underline decoration-[#8b7448] underline-offset-4 hover:text-[#e1c27d]"
+              className="mt-1 text-sm text-[#bcb3d0] underline decoration-[#8b7448] underline-offset-4 transition hover:text-[#f5dfa4]"
             >
               เริ่มการหยิบไพ่ใหม่
             </button>
           )}
         </div>
 
-        {/* ผลการเปิดไพ่ */}
+        {/* คำแนะนำก่อนหยิบไพ่ */}
         {mode === "three" &&
           drawnCards.length > 0 &&
           drawnCards.length < 3 && (
-            <p className="mt-6 text-sm leading-6 text-[#c8c0b2]">
+            <p className="mx-auto mt-6 max-w-xl text-sm leading-7 text-[#bcb3d0]">
               ค่อย ๆ ตั้งสมาธิกับคำถามของคุณ แล้วกดหยิบไพ่ทีละใบ
               ({drawnCards.length}/3 ใบ)
             </p>
           )}
 
+        {/* ผลการเปิดไพ่ */}
         {drawnCards.length > 0 && (
           <div
             ref={mode === "three" ? readingResultRef : undefined}
-            className="mt-8 scroll-mt-28"
+            className="mt-10 scroll-mt-28"
           >
-            {mode === "celtic" && (
-              <p className="mb-6 text-center text-xs leading-6 text-[#c8c0b2]">
-                ผัง Celtic Cross: ไพ่ใบที่ 2 แสดงแยกใต้ตำแหน่งปัจจุบันเพื่อให้อ่านง่าย
-                ส่วนไพ่ใบที่ 7–10 เรียงเป็นเสาด้านขวา
+            <div className="mb-8 text-center">
+              <p className="text-xs tracking-[0.35em] text-[#d7b76e]">
+                YOUR CARDS
               </p>
+
+              <h2 className="mt-3 text-2xl font-medium text-[#fff4d8]">
+                ผลการเปิดไพ่
+              </h2>
+
+              <p className="mt-2 text-sm text-[#a99fbd]">
+                {getTopicLabel(readingTopic)}
+              </p>
+            </div>
+
+            {mode === "celtic" && (
+              <div className="arcana-panel mx-auto mb-7 max-w-3xl p-4 text-center">
+                <p className="text-sm leading-7 text-[#c8c0d7]">
+                  ผัง Celtic Cross: ไพ่ใบที่ 2 แสดงแยกใต้ตำแหน่งปัจจุบันเพื่อให้อ่านง่าย
+                  ส่วนไพ่ใบที่ 7–10 เรียงเป็นเสาด้านขวา
+                </p>
+              </div>
             )}
 
             <div
               className={
-                "grid grid-cols-1 gap-6 " +
+                "grid grid-cols-1 gap-5 " +
                 (mode === "one"
                   ? "mx-auto max-w-md"
                   : mode === "celtic"
@@ -742,6 +1227,9 @@ function ReadingContent() {
                     : meaning.reversed
                   : null;
 
+                const isMeaningRevealed =
+                  revealedMeaningIds.has(card.id);
+
                 const celticPlacement =
                   mode !== "celtic"
                     ? ""
@@ -761,25 +1249,26 @@ function ReadingContent() {
                 return (
                   <article
                     key={card.id}
-                    className={`rounded-2xl border border-[#8b7448] bg-[#191622] p-4 sm:p-5 ${celticPlacement} ${
+                    className={`arcana-result-card ${celticPlacement} ${
                       mode === "celtic" && index === 1
-                        ? "border-[#c6a15b] shadow-[0_0_24px_rgba(198,161,91,0.2)]"
+                        ? "border-[#d7b76e] shadow-[0_0_30px_rgba(198,161,91,0.2)]"
                         : ""
                     }`}
                   >
-                    <p className="text-sm tracking-[0.25em] text-[#c6a15b]">
+                    <p className="text-xs tracking-[0.2em] text-[#d7b76e]">
                       {position.english}
                     </p>
 
-                    <h2 className="mt-2 text-xl font-semibold">
+                    <h2 className="mt-2 text-xl font-semibold text-[#fff4d8]">
                       {position.name}
                     </h2>
 
-                    <div className="mx-auto mt-6 w-full max-w-48">
+                    {/* หน้าไพ่แสดงก่อนเสมอ */}
+                    <div className="arcana-card-frame">
                       <img
                         src={getTarotImagePath(tarotCard)}
                         alt={card.name}
-                        className={`arcana-card-reveal w-full rounded-xl border border-[#8b7448] shadow-lg ${
+                        className={`${
                           card.orientation === "reversed"
                             ? "rotate-180"
                             : ""
@@ -794,7 +1283,7 @@ function ReadingContent() {
                       />
                     </div>
 
-                    <p className="mt-5 text-lg font-semibold">
+                    <p className="mt-5 text-lg font-semibold text-[#fff4d8]">
                       {card.name}
                     </p>
 
@@ -810,123 +1299,180 @@ function ReadingContent() {
                         : "กลับหัว · Reversed"}
                     </p>
 
-                    {!meaning || !interpretation ? (
-                      <p className="mt-5 text-sm text-rose-300">
-                        ยังไม่มีข้อมูลความหมายไพ่ใบนี้
-                      </p>
-                    ) : (
-                      <div className="mt-6 border-t border-[#8b7448]/50 pt-5 text-left">
-                        <section>
-                          <h3 className="text-sm font-semibold text-[#c6a15b]">
+                    {/* ส่วนคำอธิบาย: ซ่อนไว้ก่อน */}
+                    <div className="mt-6 border-t border-[#8b7448]/40 pt-5">
+                      {!meaning || !interpretation ? (
+                        <p className="text-sm text-rose-300">
+                          ยังไม่มีข้อมูลความหมายไพ่ใบนี้
+                        </p>
+                      ) : !isMeaningRevealed ? (
+                        <div className="py-4 text-center">
+                          <div className="mx-auto mb-4 flex h-10 w-10 items-center justify-center rounded-full border border-[#d7b76e]/35 bg-[#d7b76e]/10 text-lg text-[#e1c27d]">
+                            ✧
+                          </div>
+
+                          <p className="text-sm leading-7 text-[#bcb3d0]">
+                            ใช้เวลาสักครู่เพื่อพิจารณาภาพไพ่
+                            และความรู้สึกแรกที่เกิดขึ้นกับคุณ
+                          </p>
+
+                          <button
+                            type="button"
+                            onClick={() => revealMeaning(card.id)}
+                            className="arcana-reveal-button mt-5"
+                          >
+                            ✧ เปิดคำทำนาย ✧
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="arcana-meaning-reveal text-left">
+                          <h3 className="text-sm font-semibold tracking-wider text-[#d7b76e]">
                             คำสำคัญ
                           </h3>
 
                           <p className="mt-2 text-sm leading-6 text-[#e5d9c5]">
                             {meaning.keywords.join(" · ")}
                           </p>
-                        </section>
 
-                        {/* แสดงความหมายตามหัวข้อที่เลือก */}
-                        <section className="mt-5">
-                          <h3 className="font-semibold text-[#c6a15b]">
-                            {getTopicLabel(readingTopic)}
-                          </h3>
+                          <section className="mt-5">
+                            <h3 className="font-semibold text-[#f0d28b]">
+                              {getTopicLabel(readingTopic)}
+                            </h3>
 
-                          <p className="mt-2 text-sm leading-7 text-[#e5d9c5]">
-                            {interpretation[readingTopic]}
-                          </p>
-                        </section>
-                      </div>
-                    )}
+                            <p className="mt-2 text-sm leading-7 text-[#e5d9c5]">
+                              {interpretation[readingTopic]}
+                            </p>
+                          </section>
+                        </div>
+                      )}
+                    </div>
                   </article>
                 );
               })}
             </div>
 
-            {/* สรุปคำทำนาย */}
-            <section className="mt-12 rounded-2xl border border-[#8b7448] bg-[#191622] p-6 text-left sm:p-8">
-              <p className="text-sm tracking-[0.3em] text-[#c6a15b]">
-                YOUR TAROT READING
-              </p>
+            {/* สรุปคำทำนาย: แสดงเมื่อเปิดคำอธิบายครบทุกใบ */}
+            {allMeaningsOpened && (
+              <section className="arcana-summary mx-auto mt-12 max-w-4xl arcana-meaning-reveal">
+                <div className="text-center">
+                  <p className="text-xs tracking-[0.35em] text-[#d7b76e]">
+                    ✦ YOUR TAROT READING ✦
+                  </p>
 
-              <h2 className="mt-3 text-2xl font-bold text-[#f5e6c8]">
-                {mode === "one"
-                  ? "สรุปคำทำนายไพ่ 1 ใบ"
-                  : mode === "celtic"
-                    ? "สรุปคำทำนายกางเขนเซลติก 10 ใบ"
-                    : "สรุปคำทำนาย 3 ใบ"}
-              </h2>
+                  <h2 className="mt-4 text-2xl font-bold text-[#fff4d8] sm:text-3xl">
+                    {mode === "one"
+                      ? "สรุปคำทำนายไพ่ 1 ใบ"
+                      : mode === "celtic"
+                        ? "สรุปคำทำนายกางเขนเซลติก 10 ใบ"
+                        : "สรุปคำทำนาย 3 ใบ"}
+                  </h2>
 
-              <p className="mt-2 text-sm text-[#c6a15b]">
-                หัวข้อที่เลือก: {getTopicLabel(readingTopic)}
-              </p>
+                  <div className="mx-auto mt-4 h-px w-24 bg-gradient-to-r from-transparent via-[#d7b76e] to-transparent" />
 
-              <p className="mt-3 leading-7 text-[#c8c0b2]">
-                {mode === "one"
-                  ? "พิจารณาความหมายของไพ่ใบนี้เป็นแนวทางสะท้อนสถานการณ์และทางเลือกของคุณ"
-                  : mode === "celtic"
-                    ? "อ่านไพ่ทั้ง 10 ใบตามตำแหน่งกางเขนเซลติก โดยพิจารณาความสัมพันธ์ระหว่างสถานการณ์ปัจจุบัน อุปสรรค รากฐาน อิทธิพลจากอดีต ปัจจัยแวดล้อม และผลลัพธ์ที่เป็นไปได้"
-                    : "พิจารณาความหมายของไพ่แต่ละใบตามตำแหน่งอดีต ปัจจุบัน และอนาคต เพื่อสำรวจสถานการณ์และทางเลือกที่อาจมีความสำคัญกับคุณ"}
-              </p>
+                  <p className="mt-4 text-sm text-[#d7b76e]">
+                    หัวข้อที่เลือก: {getTopicLabel(readingTopic)}
+                  </p>
+                </div>
 
-              <div className="mt-6 space-y-6">
-                {drawnCards.map((card, index) => {
-                  const meaning = getTarotMeaningById(card.id);
-
-                  if (!meaning) {
-                    return null;
-                  }
-
-                  const interpretation =
-                    card.orientation === "upright"
-                      ? meaning.upright
-                      : meaning.reversed;
-
-                  const position =
-                    mode === "one"
-                      ? singlePosition
-                      : activePositions[index];
-
-                  return (
-                    <div
-                      key={`summary-${card.id}`}
-                      className="border-l-2 border-[#c6a15b] pl-4"
-                    >
-                      <h3 className="font-semibold text-[#c6a15b]">
-                        {position.name} — {card.name}
-                      </h3>
-
-                      <p className="mt-2 leading-7 text-[#e5d9c5]">
-                        {interpretation[readingTopic]}
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* คำแนะนำปิดท้าย */}
-              <div className="mt-6 rounded-xl border border-[#8b7448]/50 bg-[#100e17] p-5">
-                <h3 className="font-semibold text-[#c6a15b]">
-                  คำแนะนำสำหรับคุณ
-                </h3>
-
-                <p className="mt-3 text-sm leading-7 text-[#e5d9c5]">
-                  {getAdvice(readingTopic)}
+                <p className="mt-6 text-sm leading-8 text-[#c8c0d7]">
+                  {mode === "one"
+                    ? "พิจารณาความหมายของไพ่ใบนี้เป็นแนวทางสะท้อนสถานการณ์และทางเลือกของคุณ"
+                    : mode === "celtic"
+                      ? "อ่านไพ่ทั้ง 10 ใบตามตำแหน่งกางเขนเซลติก โดยพิจารณาความสัมพันธ์ระหว่างสถานการณ์ปัจจุบัน อุปสรรค รากฐาน อิทธิพลจากอดีต ปัจจัยแวดล้อม และผลลัพธ์ที่เป็นไปได้"
+                      : "พิจารณาความหมายของไพ่แต่ละใบตามตำแหน่งอดีต ปัจจุบัน และอนาคต เพื่อสำรวจสถานการณ์และทางเลือกที่อาจมีความสำคัญกับคุณ"}
                 </p>
 
-                <p className="mt-4 border-t border-[#8b7448]/40 pt-3 text-xs leading-6 text-[#c8c0b2]">
-                  การอ่านไพ่เป็นเครื่องมือสำหรับการสำรวจตนเอง
-                  ไม่ใช่การยืนยันอนาคต ควรใช้วิจารณญาณและข้อมูลจริง
-                  ประกอบการตัดสินใจ
+                <div className="mt-8 space-y-7">
+                  {drawnCards.map((card, index) => {
+                    const meaning = getTarotMeaningById(card.id);
+
+                    if (!meaning) {
+                      return null;
+                    }
+
+                    const interpretation =
+                      card.orientation === "upright"
+                        ? meaning.upright
+                        : meaning.reversed;
+
+                    const position =
+                      mode === "one"
+                        ? singlePosition
+                        : activePositions[index];
+
+                    return (
+                      <div
+                        key={`summary-${card.id}`}
+                        className="arcana-summary-item"
+                      >
+                        <h3 className="font-semibold leading-7 text-[#f0d28b]">
+                          {position.name} — {card.name}
+                        </h3>
+
+                        <p className="mt-2 text-sm leading-8 text-[#e5d9c5]">
+                          {interpretation[readingTopic]}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* คำแนะนำปิดท้าย */}
+                <div className="mt-9 rounded-xl border border-[#8b7448]/40 bg-[#0c0a1b]/70 p-5 sm:p-6">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xl text-[#d7b76e]">
+                      ✧
+                    </span>
+
+                    <h3 className="font-semibold text-[#f0d28b]">
+                      คำแนะนำสำหรับคุณ
+                    </h3>
+                  </div>
+
+                  <p className="mt-3 text-sm leading-8 text-[#e5d9c5]">
+                    {getAdvice(readingTopic)}
+                  </p>
+
+                  <p className="mt-5 border-t border-[#8b7448]/30 pt-4 text-xs leading-7 text-[#a99fbd]">
+                    การอ่านไพ่เป็นเครื่องมือสำหรับการสำรวจตนเอง
+                    ไม่ใช่การยืนยันอนาคต ควรใช้วิจารณญาณและข้อมูลจริง
+                    ประกอบการตัดสินใจ
+                  </p>
+                </div>
+
+                <div className="mt-8 text-center">
+                  <p className="text-xs tracking-[0.25em] text-[#d7b76e]">
+                    THE ARCANA
+                  </p>
+
+                  <p className="mt-2 text-xs text-[#8f8798]">
+                    May the cards guide your journey
+                  </p>
+                </div>
+              </section>
+            )}
+
+            {/* แจ้งเตือนว่ายังเปิดคำอธิบายไม่ครบ */}
+            {drawnCards.length > 0 && !allMeaningsOpened && (
+              <div className="arcana-panel mx-auto mt-8 max-w-xl p-5 text-center">
+                <span className="text-xl text-[#d7b76e]">✧</span>
+
+                <p className="mt-2 text-sm leading-7 text-[#bcb3d0]">
+                  เปิดคำทำนายของไพ่ให้ครบทุกใบ
+                  เพื่อดูบทสรุปการอ่านไพ่ของคุณ
+                </p>
+
+                <p className="mt-2 text-xs text-[#8f8798]">
+                  เปิดแล้ว {revealedMeaningIds.size} / {drawnCards.length} ใบ
                 </p>
               </div>
-            </section>
+            )}
 
             {/* กลับหน้าหลัก */}
-            <div className="mt-8 text-center">
+            <div className="mt-10 text-center">
               <a
                 href="/"
-                className="inline-flex rounded-full border border-[#8b7448]/60 px-6 py-3 text-sm text-[#c8c0b2] transition hover:border-[#c6a15b] hover:bg-[#c6a15b]/10 hover:text-[#e1c27d]"
+                className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#8b7448]/60 bg-[#191622]/60 px-7 py-3 text-sm text-[#c8c0b2] transition hover:border-[#d7b76e] hover:bg-[#c6a15b]/10 hover:text-[#f5dfa4]"
               >
                 ← กลับหน้าหลัก
               </a>
@@ -946,8 +1492,16 @@ export default function ReadingPage() {
   return (
     <Suspense
       fallback={
-        <main className="flex min-h-screen items-center justify-center bg-[#100e17] text-[#f5e6c8]">
-          <p>กำลังเตรียมไพ่ทาโรต์...</p>
+        <main className="flex min-h-screen items-center justify-center bg-[#090817] text-[#f5e6c8]">
+          <div className="text-center">
+            <div className="mx-auto mb-4 flex h-12 w-12 animate-pulse items-center justify-center rounded-full border border-[#d7b76e]/50 text-2xl text-[#d7b76e]">
+              ✦
+            </div>
+
+            <p className="text-sm tracking-wider text-[#c8c0b2]">
+              กำลังเตรียมไพ่ทาโรต์...
+            </p>
+          </div>
         </main>
       }
     >
